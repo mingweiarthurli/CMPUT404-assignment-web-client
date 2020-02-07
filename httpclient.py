@@ -27,6 +27,17 @@ import urllib.parse
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
 
+def parse_url(url):
+    parsed = re.findall(r"^(?:https?:\/\/)?(?:[^@\/\n]+@)?([^:\/?\n]+)?(?:\:)?([0-9]+)?(?:\/?)([a-z0-9\-._~%!$&'()*+,;=:@\/]+)*\/?", url, re.I)
+    host = parsed[0][0]
+    port = parsed[0][1]
+    path = '/' + parsed[0][2]
+
+    if port == '':
+        port = '80'     # use port 80 to deal with unspecified port
+
+    return host, port, path
+
 class HTTPResponse(object):
     def __init__(self, code=200, body=""):
         self.code = code
@@ -41,13 +52,17 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        code = re.findall(r'^(?:HTTP/[1-2]\.[0-1]\ )([0-9]+)(?:\ )', data)
+        return int(code[0])
 
     def get_headers(self,data):
-        return None
+        headers = re.findall(r'(?:\r\n)([\w\W]*)(?:\r\n\r\n)', data)
+        headers = headers[0].split('\r\n')
+        return headers
 
     def get_body(self, data):
-        return None
+        body = re.findall(r'(?:\r\n\r\n)([\w\W]*)$', data)
+        return body[0]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -68,13 +83,53 @@ class HTTPClient(object):
         return buffer.decode('utf-8')
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+        host, port, path = parse_url(url)
+        # if has no port, then omit port in the body
+        if port == '80':
+            payload = 'GET ' + path + ' HTTP/1.1\r\nHOST: ' + host + '\r\n\r\n'
+        else:
+            payload = 'GET ' + path + ' HTTP/1.1\r\nHOST: ' + host + ':' + port + '\r\n\r\n'
+
+        self.connect(host, int(port))
+        self.sendall(payload)
+        response = self.recvall(self.socket)
+        self.close()
+
+        code = self.get_code(response)
+        body = self.get_body(response)
+        print(body)
+
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+        host, port, path = parse_url(url)
+
+        form = ''
+        # concatenate form vars
+        if args != None:
+            for key in args:
+                form = form + key + '=' + args[key] + '&'
+            form = form[:-1]        # delete the last '&'
+
+        # if has no port, then omit port in the body
+        if port == '80':
+            payload = ('POST ' + path + ' HTTP/1.1\r\nHOST: ' + host + '\r\n' + 
+                'Content-Type: application/x-www-form-urlencoded\r\nContent-Length: ' + 
+                str(len(form.encode('utf-8'))) + '\r\n\r\n' + form)
+        else:
+            payload = ('POST ' + path + ' HTTP/1.1\r\nHOST: ' + host + ':' + port + '\r\n' + 
+                'Content-Type: application/x-www-form-urlencoded\r\nContent-Length: ' + 
+                str(len(form.encode('utf-8'))) + '\r\n\r\n' + form)
+
+        self.connect(host, int(port))
+        self.sendall(payload)
+        response = self.recvall(self.socket)
+        self.close()
+
+        code = self.get_code(response)
+        body = self.get_body(response)
+        print(body)
+
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):

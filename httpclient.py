@@ -28,6 +28,11 @@ def help():
     print("httpclient.py [GET/POST] [URL]\n")
 
 def parse_url(url):
+    '''
+    references for the parse_url regex (author; url):
+    anubhava; https://stackoverflow.com/questions/25703360/regular-expression-extract-subdomain-domain
+    Jan Goyvaerts, Steven Levithan; https://learning.oreilly.com/library/view/regular-expressions-cookbook/9781449327453/ch08s10.html
+    '''
     parsed = re.findall(r"^(?:https?:\/\/)?(?:[^@\/\n]+@)?([^:\/?\n]+)?(?:\:)?([0-9]+)?(?:\/?)([a-z0-9\-._~%!$&'()*+,;=:@\/]+)*\/?", url, re.I)
     host = parsed[0][0]
     port = parsed[0][1]
